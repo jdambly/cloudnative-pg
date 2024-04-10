@@ -1978,6 +1978,7 @@ jobs:
       - e2e-eks
       - e2e-aks
       - e2e-gke
+      - e2e-openshift
     if: |
       (always() && !cancelled()) &&
       ((
@@ -1995,6 +1996,10 @@ jobs:
       (
         needs.e2e-gke.result == 'success' ||
         needs.e2e-gke.result == 'failure'
+      ) ||
+      (
+        needs.e2e-openshift.result == 'success' ||
+        needs.e2e-openshift.result == 'failure'
       ))
     runs-on: ubuntu-22.04
     steps:
