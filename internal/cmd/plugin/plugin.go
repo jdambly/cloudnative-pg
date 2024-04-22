@@ -63,7 +63,7 @@ func SetupKubernetesClient(configFlags *genericclioptions.ConfigFlags) error {
 
 	kubeconfig := configFlags.ToRawKubeConfigLoader()
 
-	Config, err = kubeconfig.ClientConfig()
+	Config, err = configFlags.ToRESTConfig()
 	if err != nil {
 		return err
 	}
