@@ -38,6 +38,9 @@ type StorageSource struct {
 	// The (optional) data source that should be used for WALs
 	WALSource *corev1.TypedLocalObjectReference `json:"walSource"`
 
+	// the (optional) backup source that should be used for BACKUP DATA
+	BackupSource *corev1.TypedLocalObjectReference `json:"backupSource"`
+
 	// The (optional) data source that should be used for TABLESPACE
 	TablespaceSource map[string]corev1.TypedLocalObjectReference `json:"tablespaceSource"`
 }

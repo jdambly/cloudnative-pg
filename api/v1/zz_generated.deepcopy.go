@@ -821,6 +821,11 @@ func (in *ClusterSpec) DeepCopyInto(out *ClusterSpec) {
 		*out = new(StorageConfiguration)
 		(*in).DeepCopyInto(*out)
 	}
+	if in.BackupStorage != nil {
+		in, out := &in.BackupStorage, &out.BackupStorage
+		*out = new(StorageConfiguration)
+		(*in).DeepCopyInto(*out)
+	}
 	if in.EphemeralVolumeSource != nil {
 		in, out := &in.EphemeralVolumeSource, &out.EphemeralVolumeSource
 		*out = new(corev1.EphemeralVolumeSource)

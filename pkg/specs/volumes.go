@@ -98,6 +98,7 @@ func createPostgresVolumes(cluster *apiv1.Cluster, podName string) []corev1.Volu
 				},
 			},
 		},
+
 		createEphemeralVolume(cluster),
 		{
 			Name: "shm",
@@ -146,6 +147,19 @@ func createPostgresVolumes(cluster *apiv1.Cluster, podName string) []corev1.Volu
 					},
 				},
 			})
+	}
+
+	if cluster.ShouldCreateBackupVolume() {
+		result = append(result,
+			corev1.Volume{
+				Name: "backup",
+				VolumeSource: corev1.VolumeSource{
+					PersistentVolumeClaim: &corev1.PersistentVolumeClaimVolumeSource{
+						ClaimName: podName + apiv1.BackupVolumeSuffix,
+					},
+				},
+			},
+		)
 	}
 
 	// we should create volumeMounts in fixed sequence as podSpec will store it in annotation and
@@ -251,6 +265,10 @@ func createPostgresVolumeMounts(cluster apiv1.Cluster) []corev1.VolumeMount {
 		{
 			Name:      "shm",
 			MountPath: "/dev/shm",
+		},
+		{
+			Name:      "backup",
+			MountPath: "/backup",
 		},
 	}
 

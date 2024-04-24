@@ -229,6 +229,8 @@ const (
 	PVCRolePgData PVCRole = "PG_DATA"
 	// PVCRolePgWal the label value for the wal PVC role
 	PVCRolePgWal PVCRole = "PG_WAL"
+	// PVCRolePgBackup the label value for the backup PVC role
+	PVCRolePgBackup PVCRole = "PG_BACKUP"
 	// PVCRolePgTablespace the label value for the tablespace PVC role
 	PVCRolePgTablespace PVCRole = "PG_TABLESPACE"
 )
