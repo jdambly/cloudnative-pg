@@ -435,6 +435,25 @@ var _ = DescribeTable("test creation of volumes",
 				},
 			},
 		}),
+	Entry("should create a backup volume when ShouldCreateBackupVolume is true",
+		apiv1.Cluster{
+			Spec: apiv1.ClusterSpec{
+				Instances: 1,
+				BackupStorage: &apiv1.StorageConfiguration{
+					Size: "3Gi",
+				},
+			},
+		},
+		[]corev1.Volume{
+			{
+				Name: "backup",
+				VolumeSource: corev1.VolumeSource{
+					PersistentVolumeClaim: &corev1.PersistentVolumeClaimVolumeSource{
+						ClaimName: "pod-1" + apiv1.BackupVolumeSuffix,
+					},
+				},
+			},
+		}),
 	Entry("should create a volume for each tablespace",
 		apiv1.Cluster{
 			Spec: apiv1.ClusterSpec{
