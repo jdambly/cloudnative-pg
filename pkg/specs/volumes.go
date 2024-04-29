@@ -266,10 +266,6 @@ func createPostgresVolumeMounts(cluster apiv1.Cluster) []corev1.VolumeMount {
 			Name:      "shm",
 			MountPath: "/dev/shm",
 		},
-		{
-			Name:      "backup",
-			MountPath: "/backup",
-		},
 	}
 
 	if cluster.GetEnableSuperuserAccess() {
