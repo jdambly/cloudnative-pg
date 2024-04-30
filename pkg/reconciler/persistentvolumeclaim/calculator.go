@@ -80,7 +80,7 @@ func GetExpectedObjectCalculator(labels map[string]string) (ExpectedObjectCalcul
 	case utils.PVCRolePgWal:
 		return NewPgWalCalculator(), nil
 	case utils.PVCRolePgBackup:
-		return NewBackupCalculator(), nil
+		return NewPgBackupCalculator(), nil
 	case utils.PVCRolePgTablespace:
 		return NewPgTablespaceCalculator(tbsName), nil
 	default:
@@ -112,8 +112,8 @@ func NewPgWalCalculator() ExpectedObjectCalculator {
 	return pgWalCalculator{}
 }
 
-// NewBackupCalculator returns a ExpectedObjectCalculator for a PVC of BACKUP type
-func NewBackupCalculator() ExpectedObjectCalculator {
+// NewPgBackupCalculator returns a ExpectedObjectCalculator for a PVC of BACKUP type
+func NewPgBackupCalculator() ExpectedObjectCalculator {
 	return pgBackupCalculator{}
 }
 
