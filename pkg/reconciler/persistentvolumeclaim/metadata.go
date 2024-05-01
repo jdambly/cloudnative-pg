@@ -217,6 +217,13 @@ func newLabelReconciler(cluster *apiv1.Cluster) metadataReconciler { //nolint: g
 					}
 				}
 
+				if pvc.Name == NewPgBackupCalculator().GetName(instanceName) {
+					found = true
+					if pvcRole != string(utils.PVCRolePgBackup) {
+						return false
+					}
+				}
+
 				for _, tbsConfig := range cluster.Spec.Tablespaces {
 					if NewPgTablespaceCalculator(tbsConfig.Name).GetName(instanceName) == pvc.Name {
 						found = true
@@ -254,6 +261,13 @@ func newLabelReconciler(cluster *apiv1.Cluster) metadataReconciler { //nolint: g
 					found = true
 					if pvcRole != string(utils.PVCRolePgWal) {
 						pvc.Labels[utils.PvcRoleLabelName] = string(utils.PVCRolePgWal)
+					}
+				}
+
+				if pvc.Name == NewPgBackupCalculator().GetName(instanceName) {
+					found = true
+					if pvcRole != string(utils.PVCRolePgBackup) {
+						pvc.Labels[utils.PvcRoleLabelName] = string(utils.PVCRolePgBackup)
 					}
 				}
 

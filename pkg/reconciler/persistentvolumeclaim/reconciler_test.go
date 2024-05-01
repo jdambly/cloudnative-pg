@@ -48,6 +48,7 @@ var _ = Describe("Reconcile Metadata", func() {
 				makePVC(clusterName, "2", "2", NewPgWalCalculator(), false),      // role is out of sync with name
 				makePVC(clusterName, "3-wal", "3", NewPgDataCalculator(), false), // role is out of sync with name
 				makePVC(clusterName, "3", "3", NewPgDataCalculator(), false),
+				makePVC(clusterName, "3-backup", "3", NewPgBackupCalculator(), false), // role is out of sync with name
 			},
 		}
 		cluster := &apiv1.Cluster{
@@ -65,6 +66,9 @@ var _ = Describe("Reconcile Metadata", func() {
 					Size: "1Gi",
 				},
 				WalStorage: &apiv1.StorageConfiguration{
+					Size: "1Gi",
+				},
+				BackupStorage: &apiv1.StorageConfiguration{
 					Size: "1Gi",
 				},
 			},

@@ -142,6 +142,9 @@ func getExpectedPVCsFromCluster(cluster *apiv1.Cluster, instanceName string) []e
 	if cluster.ShouldCreateWalArchiveVolume() {
 		roles = append(roles, NewPgWalCalculator())
 	}
+	if cluster.ShouldCreateBackupVolume() {
+		roles = append(roles, NewPgBackupCalculator())
+	}
 	for _, tbsConfig := range cluster.Spec.Tablespaces {
 		roles = append(roles, NewPgTablespaceCalculator(tbsConfig.Name))
 	}
