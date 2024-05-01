@@ -465,7 +465,7 @@ var _ = DescribeTable("test creation of volumes",
 		},
 		[]corev1.Volume{
 			{
-				Name: "backup",
+				Name: "pg-backup",
 				VolumeSource: corev1.VolumeSource{
 					PersistentVolumeClaim: &corev1.PersistentVolumeClaimVolumeSource{
 						ClaimName: "pod-1" + apiv1.BackupVolumeSuffix,
