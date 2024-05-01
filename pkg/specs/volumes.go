@@ -295,6 +295,16 @@ func createPostgresVolumeMounts(cluster apiv1.Cluster) []corev1.VolumeMount {
 		)
 	}
 
+	if cluster.ShouldCreateBackupVolume() {
+		volumeMounts = append(volumeMounts,
+			corev1.VolumeMount{
+				Name:      "pg-backup",
+				MountPath: "/backup",
+			},
+		)
+
+	}
+
 	if cluster.ShouldCreateProjectedVolume() {
 		volumeMounts = append(volumeMounts,
 			corev1.VolumeMount{

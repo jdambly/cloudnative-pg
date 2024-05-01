@@ -344,6 +344,25 @@ var _ = DescribeTable("test creation of volume mounts",
 				SubPathExpr:      "",
 			},
 		}),
+	Entry("creates backup mounts for a cluster with backupStorage configured",
+		apiv1.Cluster{
+			Spec: apiv1.ClusterSpec{
+				Instances: 1,
+				BackupStorage: &apiv1.StorageConfiguration{
+					Size: "3Gi",
+				},
+			},
+		},
+		[]corev1.VolumeMount{
+			{
+				Name:             "pg-backup",
+				ReadOnly:         false,
+				MountPath:        "/backup",
+				SubPath:          "",
+				MountPropagation: nil,
+				SubPathExpr:      "",
+			},
+		}),
 	Entry("creates a volume mount for each tablespace, with the expected mount point",
 		apiv1.Cluster{
 			Spec: apiv1.ClusterSpec{
