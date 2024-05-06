@@ -321,7 +321,8 @@ type QueryCollector struct {
 func (c QueryCollector) collect(conn *sql.DB, ch chan<- prometheus.Metric) error {
 	tx, err := createMonitoringTx(conn)
 	if err != nil {
-		return err
+		log.Error(err, "Error while creating monitoring transaction")
+		return nil
 	}
 
 	defer func() {
@@ -332,7 +333,8 @@ func (c QueryCollector) collect(conn *sql.DB, ch chan<- prometheus.Metric) error
 
 	rows, err := tx.Query(c.userQuery.Query)
 	if err != nil {
-		return err
+		log.Warning("Error while executing query", "query", c.userQuery.Query, "err", err.Error())
+		return nil
 	}
 	defer func() {
 		if err := rows.Close(); err != nil {
@@ -343,7 +345,8 @@ func (c QueryCollector) collect(conn *sql.DB, ch chan<- prometheus.Metric) error
 
 	columns, err := rows.Columns()
 	if err != nil {
-		return err
+		log.Warning("Error while loading columns from query")
+		return nil
 	}
 
 	columnData := make([]interface{}, len(columns))
@@ -362,7 +365,8 @@ func (c QueryCollector) collect(conn *sql.DB, ch chan<- prometheus.Metric) error
 
 	for rows.Next() {
 		if err = rows.Scan(scanArgs...); err != nil {
-			return err
+			log.Warning("Error while scanning rows")
+			return nil
 		}
 
 		labels, done := c.collectLabels(columns, columnData)
