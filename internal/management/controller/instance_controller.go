@@ -53,6 +53,7 @@ import (
 	postgresutils "github.com/cloudnative-pg/cloudnative-pg/pkg/management/postgres/utils"
 	"github.com/cloudnative-pg/cloudnative-pg/pkg/management/postgres/webserver/metricserver"
 	"github.com/cloudnative-pg/cloudnative-pg/pkg/postgres"
+	externalcluster "github.com/cloudnative-pg/cloudnative-pg/pkg/reconciler/replicaclusterswitch"
 	"github.com/cloudnative-pg/cloudnative-pg/pkg/system"
 	pkgUtils "github.com/cloudnative-pg/cloudnative-pg/pkg/utils"
 )
@@ -155,7 +156,7 @@ func (r *InstanceReconciler) Reconcile(
 
 	r.systemInitialization.Broadcast()
 
-	if result := r.reconcileFencing(cluster); result != nil {
+	if result := r.reconcileFencing(ctx, cluster); result != nil {
 		contextLogger.Info("Fencing status changed, will not proceed with the reconciliation loop")
 		return *result, nil
 	}
@@ -271,8 +272,14 @@ func (r *InstanceReconciler) restartPrimaryInplaceIfRequested(
 	if err != nil {
 		return false, err
 	}
-	if isPrimary && cluster.Status.Phase == apiv1.PhaseInplacePrimaryRestart {
-		if err := r.instance.RequestAndWaitRestartSmartFast(); err != nil {
+	restartRequested := isPrimary && cluster.Status.Phase == apiv1.PhaseInplacePrimaryRestart
+	if restartRequested {
+		restartTimeout := cluster.GetRestartTimeout()
+
+		if err := r.instance.RequestAndWaitRestartSmartFast(
+			ctx,
+			time.Duration(restartTimeout)*time.Second,
+		); err != nil {
 			return true, err
 		}
 		oldCluster := cluster.DeepCopy()
@@ -314,7 +321,7 @@ func (r *InstanceReconciler) refreshConfigurationFiles(
 	return reloadNeeded, nil
 }
 
-func (r *InstanceReconciler) reconcileFencing(cluster *apiv1.Cluster) *reconcile.Result {
+func (r *InstanceReconciler) reconcileFencing(ctx context.Context, cluster *apiv1.Cluster) *reconcile.Result {
 	fencingRequired := cluster.IsInstanceFenced(r.instance.PodName)
 	isFenced := r.instance.IsFenced()
 	switch {
@@ -324,7 +331,8 @@ func (r *InstanceReconciler) reconcileFencing(cluster *apiv1.Cluster) *reconcile
 		return &reconcile.Result{}
 	case isFenced && !fencingRequired:
 		// fencing enabled and not required anymore, request to disable fencing and continue
-		err := r.instance.RequestAndWaitFencingOff()
+		timeout := time.Second * time.Duration(cluster.GetMaxStartDelay())
+		err := r.instance.RequestAndWaitFencingOff(ctx, timeout)
 		if err != nil {
 			log.Error(err, "while waiting for the instance to be restarted after lifting the fence")
 		}
@@ -891,10 +899,28 @@ func (r *InstanceReconciler) RefreshSecrets(
 
 // reconcileInstance sets PostgreSQL instance parameters to current values
 func (r *InstanceReconciler) reconcileInstance(cluster *apiv1.Cluster) {
+	detectRequiresDesignatedPrimaryTransition := func() bool {
+		if !cluster.IsReplica() {
+			return false
+		}
+
+		if !externalcluster.IsDesignatedPrimaryTransitionRequested(cluster) {
+			return false
+		}
+
+		if !r.instance.IsFenced() && !r.instance.MightBeUnavailable() {
+			return false
+		}
+
+		isPrimary, _ := r.instance.IsPrimary()
+		return isPrimary
+	}
+
 	r.instance.PgCtlTimeoutForPromotion = cluster.GetPgCtlTimeoutForPromotion()
 	r.instance.MaxSwitchoverDelay = cluster.GetMaxSwitchoverDelay()
 	r.instance.MaxStopDelay = cluster.GetMaxStopDelay()
 	r.instance.SmartStopDelay = cluster.GetSmartShutdownTimeout()
+	r.instance.RequiresDesignatedPrimaryTransition = detectRequiresDesignatedPrimaryTransition()
 }
 
 // reconcileAutoConf reconciles the permission of `postgresql.auto.conf`
@@ -934,7 +960,7 @@ func (r *InstanceReconciler) reconcileCheckWalArchiveFile(cluster *apiv1.Cluster
 func (r *InstanceReconciler) processConfigReloadAndManageRestart(ctx context.Context, cluster *apiv1.Cluster) error {
 	contextLogger := log.FromContext(ctx)
 
-	status, err := r.instance.WaitForConfigReload()
+	status, err := r.instance.WaitForConfigReload(ctx)
 	if err != nil {
 		return err
 	}
@@ -952,7 +978,8 @@ func (r *InstanceReconciler) processConfigReloadAndManageRestart(ctx context.Con
 	if status.IsPrimary && status.PendingRestartForDecrease {
 		if cluster.GetPrimaryUpdateStrategy() == apiv1.PrimaryUpdateStrategyUnsupervised {
 			contextLogger.Info("Restarting primary in-place due to hot standby sensible parameters decrease")
-			return r.Instance().RequestAndWaitRestartSmartFast()
+			restartTimeout := time.Duration(cluster.GetRestartTimeout()) * time.Second
+			return r.Instance().RequestAndWaitRestartSmartFast(ctx, restartTimeout)
 		}
 		reason := "decrease of hot standby sensitive parameters"
 		contextLogger.Info("Waiting for the user to request a restart of the primary instance or a switchover "+
@@ -1015,7 +1042,7 @@ func (r *InstanceReconciler) refreshCertificateFilesFromSecret(
 		return false, fmt.Errorf("while writing server private key: %w", err)
 	}
 
-	if certificateIsChanged {
+	if privateKeyIsChanged {
 		contextLogger.Info("Refreshed configuration file",
 			"filename", privateKeyLocation,
 			"secret", secret.Name)
@@ -1145,7 +1172,7 @@ func (r *InstanceReconciler) reconcileDesignatedPrimary(
 	cluster *apiv1.Cluster,
 ) (changed bool, err error) {
 	// If I'm already the current designated primary everything is ok.
-	if cluster.Status.CurrentPrimary == r.instance.PodName {
+	if cluster.Status.CurrentPrimary == r.instance.PodName && !r.instance.RequiresDesignatedPrimaryTransition {
 		return false, nil
 	}
 
@@ -1161,6 +1188,9 @@ func (r *InstanceReconciler) reconcileDesignatedPrimary(
 	oldCluster := cluster.DeepCopy()
 	cluster.Status.CurrentPrimary = r.instance.PodName
 	cluster.Status.CurrentPrimaryTimestamp = pkgUtils.GetCurrentTimestamp()
+	if r.instance.RequiresDesignatedPrimaryTransition {
+		externalcluster.SetDesignatedPrimaryTransitionCompleted(cluster)
+	}
 	return changed, r.client.Status().Patch(ctx, cluster, client.MergeFrom(oldCluster))
 }
 

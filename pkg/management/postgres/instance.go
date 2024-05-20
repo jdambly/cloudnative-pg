@@ -175,6 +175,10 @@ type Instance struct {
 	// SmartStopDelay is used to control PostgreSQL smart shutdown timeout
 	SmartStopDelay int32
 
+	// RequiresDesignatedPrimaryTransition indicates if this instance is a primary that needs to become
+	// a designatedPrimary
+	RequiresDesignatedPrimaryTransition bool
+
 	// canCheckReadiness specifies whether the instance can start being checked for readiness
 	// Is set to true before the instance is run and to false once it exits,
 	// it's used by the readiness probe to know whether it should be short-circuited
@@ -746,7 +750,7 @@ func (instance *Instance) Demote(ctx context.Context, cluster *apiv1.Cluster) er
 }
 
 // WaitForPrimaryAvailable waits until we can connect to the primary
-func (instance *Instance) WaitForPrimaryAvailable() error {
+func (instance *Instance) WaitForPrimaryAvailable(ctx context.Context) error {
 	primaryConnInfo := instance.GetPrimaryConnInfo() + " dbname=postgres connect_timeout=5"
 
 	log.Info("Waiting for the new primary to be available",
@@ -760,43 +764,48 @@ func (instance *Instance) WaitForPrimaryAvailable() error {
 		_ = db.Close()
 	}()
 
-	return waitForConnectionAvailable(db)
+	return waitForConnectionAvailable(ctx, db)
 }
 
 // CompleteCrashRecovery temporary starts up the server and wait for it
 // to be fully available for queries. This will ensure that the crash recovery
 // is fully done.
 // Important: this function must be called only when the instance isn't started
-func (instance *Instance) CompleteCrashRecovery() error {
+func (instance *Instance) CompleteCrashRecovery(ctx context.Context) error {
 	log.Info("Waiting for server to complete crash recovery")
 
 	defer func() {
 		instance.ShutdownConnections()
 	}()
 
-	return instance.WithActiveInstance(instance.WaitForSuperuserConnectionAvailable)
+	return instance.WithActiveInstance(func() error {
+		return instance.WaitForSuperuserConnectionAvailable(ctx)
+	})
 }
 
 // WaitForSuperuserConnectionAvailable waits until we can connect to this
 // instance using the superuser account
-func (instance *Instance) WaitForSuperuserConnectionAvailable() error {
+func (instance *Instance) WaitForSuperuserConnectionAvailable(ctx context.Context) error {
 	db, err := instance.GetSuperUserDB()
 	if err != nil {
 		return err
 	}
 
-	return waitForConnectionAvailable(db)
+	return waitForConnectionAvailable(ctx, db)
 }
 
 // waitForConnectionAvailable waits until we can connect to the passed
 // sql.DB connection
-func waitForConnectionAvailable(db *sql.DB) error {
+func waitForConnectionAvailable(context context.Context, db *sql.DB) error {
 	errorIsRetryable := func(err error) bool {
+		if context.Err() != nil {
+			return false
+		}
 		return err != nil
 	}
 
 	return retry.OnError(RetryUntilServerAvailable, errorIsRetryable, func() error {
-		err := db.Ping()
+		err := db.PingContext(context)
 		if err != nil {
 			log.Info("DB not available, will retry", "err", err)
 		}
@@ -829,7 +838,7 @@ func (instance *Instance) waitUntilConfigShaMatches() error {
 }
 
 // WaitForConfigReload returns the postgresqlStatus and any error encountered
-func (instance *Instance) WaitForConfigReload() (*postgres.PostgresqlStatus, error) {
+func (instance *Instance) WaitForConfigReload(ctx context.Context) (*postgres.PostgresqlStatus, error) {
 	// This function could also be called while the server is being
 	// started up, so we are not sure that the server is really active.
 	// Let's wait for that.
@@ -837,7 +846,7 @@ func (instance *Instance) WaitForConfigReload() (*postgres.PostgresqlStatus, err
 		return nil, nil
 	}
 
-	err := instance.WaitForSuperuserConnectionAvailable()
+	err := instance.WaitForSuperuserConnectionAvailable(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("while applying new configuration: %w", err)
 	}
@@ -1079,13 +1088,19 @@ func (instance *Instance) RequestFastImmediateShutdown() {
 
 // RequestAndWaitRestartSmartFast requests the lifecycle manager to
 // restart the postmaster, and wait for the postmaster to be restarted
-func (instance *Instance) RequestAndWaitRestartSmartFast() error {
+func (instance *Instance) RequestAndWaitRestartSmartFast(ctx context.Context, timeout time.Duration) error {
 	instance.SetMightBeUnavailable(true)
 	defer instance.SetMightBeUnavailable(false)
+
+	restartCtx, cancel := context.WithTimeoutCause(
+		ctx,
+		timeout,
+		fmt.Errorf("timeout while restarting PostgreSQL"))
+	defer cancel()
+
 	now := time.Now()
 	instance.requestRestartSmartFast()
-	err := instance.waitForInstanceRestarted(now)
-	if err != nil {
+	if err := instance.waitForInstanceRestarted(restartCtx, now); err != nil {
 		return fmt.Errorf("while waiting for instance restart: %w", err)
 	}
 
@@ -1105,13 +1120,29 @@ func (instance *Instance) RequestFencingOn() {
 
 // RequestAndWaitFencingOff will request to remove the fencing
 // and wait for the instance to be restarted
-func (instance *Instance) RequestAndWaitFencingOff() error {
-	defer instance.SetMightBeUnavailable(false)
-	now := time.Now()
-	instance.requestFencingOff()
-	err := instance.waitForInstanceRestarted(now)
-	if err != nil {
-		return fmt.Errorf("while waiting for instance restart: %w", err)
+func (instance *Instance) RequestAndWaitFencingOff(ctx context.Context, timeout time.Duration) error {
+	liftFencing := func() error {
+		ctxWithTimeout, cancel := context.WithTimeoutCause(
+			ctx,
+			timeout,
+			fmt.Errorf("timeout while resuming PostgreSQL from fencing"),
+		)
+		defer cancel()
+
+		defer instance.SetMightBeUnavailable(false)
+		now := time.Now()
+		instance.requestFencingOff()
+		err := instance.waitForInstanceRestarted(ctxWithTimeout, now)
+		if err != nil {
+			return fmt.Errorf("while waiting for instance restart: %w", err)
+		}
+
+		return nil
+	}
+
+	// let PostgreSQL start up
+	if err := liftFencing(); err != nil {
+		return err
 	}
 
 	// sleep enough for the pod to be ready again
@@ -1127,17 +1158,18 @@ func (instance *Instance) requestFencingOff() {
 
 // waitForInstanceRestarted waits until the instance reports being started
 // after the given time
-func (instance *Instance) waitForInstanceRestarted(after time.Time) error {
-	retryOnEveryError := func(_ error) bool {
-		return true
+func (instance *Instance) waitForInstanceRestarted(ctx context.Context, after time.Time) error {
+	retryUntilContextCancelled := func(_ error) bool {
+		return ctx.Err() == nil
 	}
-	return retry.OnError(RetryUntilServerAvailable, retryOnEveryError, func() error {
+
+	return retry.OnError(RetryUntilServerAvailable, retryUntilContextCancelled, func() error {
 		db, err := instance.GetSuperUserDB()
 		if err != nil {
 			return err
 		}
 		var startTime time.Time
-		row := db.QueryRow("SELECT pg_postmaster_start_time()")
+		row := db.QueryRowContext(ctx, "SELECT pg_postmaster_start_time()")
 		err = row.Scan(&startTime)
 		if err != nil {
 			return err

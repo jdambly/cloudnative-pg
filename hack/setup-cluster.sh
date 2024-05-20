@@ -24,8 +24,8 @@ if [ "${DEBUG-}" = true ]; then
 fi
 
 # Defaults
-KIND_NODE_DEFAULT_VERSION=v1.29.2
-K3D_NODE_DEFAULT_VERSION=v1.29.3
+KIND_NODE_DEFAULT_VERSION=v1.30.0
+K3D_NODE_DEFAULT_VERSION=v1.30.0
 CSI_DRIVER_HOST_PATH_DEFAULT_VERSION=v1.13.0
 EXTERNAL_SNAPSHOTTER_VERSION=v7.0.2
 EXTERNAL_PROVISIONER_VERSION=v4.0.1
@@ -452,6 +452,12 @@ EOF
   kubectl -n cnpg-system patch deployment cnpg-controller-manager --patch-file "${annotations}"
 }
 
+deploy_prometheus_crds() {
+  echo "${bright}Starting deployment of Prometheus CRDs... ${reset}"
+  helm repo add prometheus-community https://prometheus-community.github.io/helm-charts
+  helm -n kube-system install prometheus-operator-crds prometheus-community/prometheus-operator-crds
+}
+
 load_image_registry() {
   local image=$1
 
@@ -540,6 +546,7 @@ create() {
 
   deploy_fluentd
   deploy_csi_host_path
+  deploy_prometheus_crds
 
   echo "${bright}Done creating ${ENGINE} cluster ${CLUSTER_NAME} with version ${K8S_VERSION}${reset}"
 }
