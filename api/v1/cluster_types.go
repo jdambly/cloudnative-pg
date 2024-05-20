@@ -505,6 +505,10 @@ type ClusterSpec struct {
 	// The plugins configuration, containing
 	// any plugin to be loaded with the corresponding configuration
 	Plugins PluginConfigurationList `json:"plugins,omitempty"`
+
+	// enables the injection of a sidecar container in the postgres pods
+	// +optional
+	SideCars []corev1.Container `json:"sideCars,omitempty"`
 }
 
 // PluginConfigurationList represent a set of plugin with their

@@ -252,6 +252,10 @@ func createPostgresContainers(cluster apiv1.Cluster, envConfig EnvConfig) []core
 
 	addManagerLoggingOptions(cluster, &containers[0])
 
+	if cluster.Spec.SideCars != nil {
+		containers = append(containers, cluster.Spec.SideCars...)
+	}
+
 	return containers
 }
 
