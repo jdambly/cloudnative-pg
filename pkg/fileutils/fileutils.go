@@ -348,6 +348,7 @@ func MoveFile(sourcePath, destPath string) (err error) {
 // RemoveDirectoryContent removes all the files and directories inside the provided path.
 // The directory itself is preserved.
 func RemoveDirectoryContent(dir string) (err error) {
+	log.Info("Removing directory content", "dir", dir)
 	names, err := GetDirectoryContent(dir)
 	if err != nil {
 		return
@@ -363,6 +364,7 @@ func RemoveDirectoryContent(dir string) (err error) {
 
 // RemoveFile removes a specified file. Also works if a directory is empty.
 func RemoveFile(fileName string) error {
+	log.Info("Removing file", "fileName", fileName)
 	err := os.Remove(fileName)
 	if os.IsNotExist(err) {
 		return nil
@@ -373,6 +375,7 @@ func RemoveFile(fileName string) error {
 
 // RemoveDirectory remove the directory and all its content
 func RemoveDirectory(dir string) error {
+	log.Info("Removing directory", "dir", dir)
 	if err := RemoveDirectoryContent(dir); err != nil {
 		return err
 	}
@@ -418,6 +421,7 @@ func GetDirectoryContent(dir string) (files []string, err error) {
 // filePaths: ["file1.txt", "subdir/*"]
 // This would remove "/path/to/directory/file1.txt" and the "path/to/directory/subdir" folder
 func RemoveFiles(ctx context.Context, basePath string, filePaths []string) error {
+	log.Info("Removing files", "basePath", basePath, "filePaths", filePaths)
 	contextLogger := log.FromContext(ctx)
 
 	for _, pattern := range filePaths {
@@ -460,6 +464,7 @@ func RemoveFiles(ctx context.Context, basePath string, filePaths []string) error
 // Returns:
 // - error: Any error encountered during the removal process, or nil if the operation was successful.
 func RemoveRestoreExcludedFiles(ctx context.Context, basePath string) error {
+	log.Info("Removing excluded files from restore", "basePath", basePath)
 	return RemoveFiles(ctx, basePath, excludedPathsFromRestore)
 }
 
@@ -467,6 +472,7 @@ func RemoveRestoreExcludedFiles(ctx context.Context, basePath string) error {
 // the source files or subdirectories recursively to the destination.
 // Once this is done it deletes the files from the original location.
 func MoveDirectoryContent(sourceDirectory, destinationDirectory string) error {
+	log.Info("Moving directory content", "sourceDirectory", sourceDirectory, "destinationDirectory", destinationDirectory)
 	var err error
 	var fileNames []string
 
