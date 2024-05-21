@@ -929,3 +929,40 @@ var _ = Describe("Compute startup probe failure threshold", func() {
 		Expect(getStartupProbeFailureThreshold(109)).To(BeNumerically("==", 11))
 	})
 })
+
+var _ = Describe("Create containers with sidecar", func() {
+	It("should add the sidecar container to the pod spec", func() {
+		cluster := v1.Cluster{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      "test",
+				Namespace: "test-ns",
+			},
+			Spec: v1.ClusterSpec{
+				SideCars: []corev1.Container{
+					{
+						Name:  "sidecar",
+						Image: "sidecar:latest",
+					},
+				},
+				Env: []corev1.EnvVar{
+					{
+						Name:  "TEST_ENV",
+						Value: "EXPECTED",
+					},
+				},
+			},
+		}
+		envConfig := CreatePodEnvConfig(cluster, "test-1")
+		containerSpec := createPostgresContainers(cluster, envConfig)
+		sidecarFound := false
+		for _, container := range containerSpec {
+			if container.Name == "sidecar" {
+				sidecarFound = true
+				break
+			}
+		}
+
+		Expect(sidecarFound).To(BeTrue(), "sidecar container not found")
+
+	})
+})
