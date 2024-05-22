@@ -939,7 +939,7 @@ func (instance *Instance) managePgControlFileBackup() error {
 func (instance *Instance) removePgControlFileBackup() error {
 	pgControlFilePath := filepath.Join(instance.PgData, "global", "pg_control")
 	pgControlBackupFilePath := pgControlFilePath + pgControlFileBackupExtension
-
+	log.Info("Removing pg_control backup file", "path", pgControlBackupFilePath)
 	err := os.Remove(pgControlBackupFilePath)
 	if err != nil && !os.IsNotExist(err) {
 		return err

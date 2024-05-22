@@ -93,11 +93,11 @@ func (instance *Instance) CheckForExistingPostmaster(postgresExecutables ...stri
 // It removes the default PostgreSQL pid file and the content of the socket directory.
 func (instance *Instance) CleanUpStalePid() error {
 	pidFile := path.Join(instance.PgData, PostgresqlPidFile)
-
+	log.Info("Removing stale postmaster pid file", "pidFile", pidFile)
 	if err := os.Remove(pidFile); err != nil && !os.IsNotExist(err) {
 		return err
 	}
-
+	log.Info("Removing up stale postmaster socket directory", "socketDirectory", instance.SocketDirectory)
 	if err := fileutils.RemoveDirectoryContent(instance.SocketDirectory); err != nil && !os.IsNotExist(err) {
 		return err
 	}
