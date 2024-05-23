@@ -63,6 +63,7 @@ func FromReader(
 	defer func() {
 		// This code is executed only if the instance manager has not been updated, and
 		// this is the only condition we have a temporary file to remove
+		log.Info("Removing temporary instance manager upload file", "name", updatedInstanceManager.Name())
 		removeError := os.Remove(updatedInstanceManager.Name())
 		if removeError != nil {
 			log.Warning("Error while removing temporary instance manager upload file",

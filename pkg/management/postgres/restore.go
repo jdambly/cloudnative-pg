@@ -692,6 +692,7 @@ func (info InitInfo) WriteInitialPostgresqlConf(cluster *apiv1.Cluster) error {
 		return fmt.Errorf("while creating a temporary data directory: %w", err)
 	}
 	defer func() {
+		log.Info("Removing up temporary data directory", "path", tempDataDir)
 		err = os.RemoveAll(tempDataDir)
 		if err != nil {
 			log.Error(

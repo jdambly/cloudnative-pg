@@ -62,7 +62,7 @@ func (spool *WALSpool) Contains(walFile string) (bool, error) {
 // exist an error is returned
 func (spool *WALSpool) Remove(walFile string) error {
 	walFile = path.Base(walFile)
-
+	log.Info("Removing WAL file from spool", "walFile", walFile)
 	err := os.Remove(path.Join(spool.spoolDirectory, walFile))
 	if err != nil && os.IsNotExist(err) {
 		return ErrorNonExistentFile
