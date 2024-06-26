@@ -154,4 +154,44 @@ var _ = Describe("pvc role test", func() {
 		Expect(role.GetSource(&storageSource2)).Error().Should(HaveOccurred())
 		Expect(role.GetSource(&storageSource1)).To(BeEquivalentTo(&corev1.TypedLocalObjectReference{Name: "test"}))
 	})
+
+	It("return expected value for pgBackup", func() {
+		instanceName := "instance1"
+		backupName := "backup1"
+		expectedLabel := map[string]string{
+			utils.PvcRoleLabelName:      string(utils.PVCRolePgBackup),
+			utils.InstanceNameLabelName: instanceName,
+		}
+
+		cluster := apiv1.Cluster{
+			Spec: apiv1.ClusterSpec{
+				BackupStorage: &apiv1.StorageConfiguration{
+					Size: "5Gi",
+				},
+			},
+		}
+
+		backSource := corev1.TypedLocalObjectReference{
+			Name: "test",
+		}
+		storageSource := StorageSource{
+			BackupSource: &backSource,
+		}
+
+		role := NewPgBackupCalculator()
+		Expect(role.GetRoleName()).To(BeEquivalentTo(utils.PVCRolePgBackup))
+		Expect(role.GetName(instanceName)).To(BeIdenticalTo(instanceName + apiv1.BackupVolumeSuffix))
+		Expect(role.GetLabels(instanceName)).To(BeEquivalentTo(expectedLabel))
+		Expect(role.GetInitialStatus()).To(BeIdenticalTo(StatusReady))
+		Expect(role.GetSnapshotName(backupName)).To(BeIdenticalTo(backupName + apiv1.BackupVolumeSuffix))
+
+		Expect(role.GetStorageConfiguration(&cluster)).To(BeEquivalentTo(
+			apiv1.StorageConfiguration{
+				Size: "5Gi",
+			}))
+		Expect(role.GetSource(nil)).To(BeNil())
+		Expect(role.GetSource(&StorageSource{})).Error().Should(HaveOccurred())
+		Expect(role.GetSource(&storageSource)).To(BeEquivalentTo(&backSource))
+
+	})
 })

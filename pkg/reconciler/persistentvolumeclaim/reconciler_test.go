@@ -48,6 +48,7 @@ var _ = Describe("Reconcile Metadata", func() {
 				makePVC(clusterName, "2", "2", NewPgWalCalculator(), false),      // role is out of sync with name
 				makePVC(clusterName, "3-wal", "3", NewPgDataCalculator(), false), // role is out of sync with name
 				makePVC(clusterName, "3", "3", NewPgDataCalculator(), false),
+				makePVC(clusterName, "3-backup", "3", NewPgBackupCalculator(), false), // role is out of sync with name
 			},
 		}
 		cluster := &apiv1.Cluster{
@@ -65,6 +66,9 @@ var _ = Describe("Reconcile Metadata", func() {
 					Size: "1Gi",
 				},
 				WalStorage: &apiv1.StorageConfiguration{
+					Size: "1Gi",
+				},
+				BackupStorage: &apiv1.StorageConfiguration{
 					Size: "1Gi",
 				},
 			},
@@ -434,6 +438,7 @@ var _ = Describe("Storage configuration", func() {
 		Spec: apiv1.ClusterSpec{
 			StorageConfiguration: apiv1.StorageConfiguration{},
 			WalStorage:           &apiv1.StorageConfiguration{},
+			BackupStorage:        &apiv1.StorageConfiguration{},
 		},
 	}
 
@@ -443,6 +448,10 @@ var _ = Describe("Storage configuration", func() {
 		Expect(err).ToNot(HaveOccurred())
 
 		configuration, err = NewPgWalCalculator().GetStorageConfiguration(cluster)
+		Expect(configuration).ToNot(BeNil())
+		Expect(err).ToNot(HaveOccurred())
+
+		configuration, err = NewPgBackupCalculator().GetStorageConfiguration(cluster)
 		Expect(configuration).ToNot(BeNil())
 		Expect(err).ToNot(HaveOccurred())
 	})

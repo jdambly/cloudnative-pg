@@ -344,6 +344,25 @@ var _ = DescribeTable("test creation of volume mounts",
 				SubPathExpr:      "",
 			},
 		}),
+	Entry("creates backup mounts for a cluster with backupStorage configured",
+		apiv1.Cluster{
+			Spec: apiv1.ClusterSpec{
+				Instances: 1,
+				BackupStorage: &apiv1.StorageConfiguration{
+					Size: "3Gi",
+				},
+			},
+		},
+		[]corev1.VolumeMount{
+			{
+				Name:             "pg-backup",
+				ReadOnly:         false,
+				MountPath:        "/backup",
+				SubPath:          "",
+				MountPropagation: nil,
+				SubPathExpr:      "",
+			},
+		}),
 	Entry("creates a volume mount for each tablespace, with the expected mount point",
 		apiv1.Cluster{
 			Spec: apiv1.ClusterSpec{
@@ -431,6 +450,25 @@ var _ = DescribeTable("test creation of volumes",
 				VolumeSource: corev1.VolumeSource{
 					PersistentVolumeClaim: &corev1.PersistentVolumeClaimVolumeSource{
 						ClaimName: "pod-1" + apiv1.WalArchiveVolumeSuffix,
+					},
+				},
+			},
+		}),
+	Entry("should create a backup volume when ShouldCreateBackupVolume is true",
+		apiv1.Cluster{
+			Spec: apiv1.ClusterSpec{
+				Instances: 1,
+				BackupStorage: &apiv1.StorageConfiguration{
+					Size: "3Gi",
+				},
+			},
+		},
+		[]corev1.Volume{
+			{
+				Name: "pg-backup",
+				VolumeSource: corev1.VolumeSource{
+					PersistentVolumeClaim: &corev1.PersistentVolumeClaimVolumeSource{
+						ClaimName: "pod-1" + apiv1.BackupVolumeSuffix,
 					},
 				},
 			},

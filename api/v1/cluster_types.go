@@ -93,6 +93,10 @@ const (
 	// get the name of the PVC dedicated to WAL files.
 	WalArchiveVolumeSuffix = "-wal"
 
+	// BackupVolumeSuffix is the suffix appended to the instance name to
+	// get the name of the PVC dedicated to backups.
+	BackupVolumeSuffix = "-backup"
+
 	// TablespaceVolumeInfix is the infix added between the instance name
 	// and tablespace name to get the name of PVC for a certain tablespace
 	TablespaceVolumeInfix = "-tbs-"
@@ -152,6 +156,9 @@ type VolumeSnapshotConfiguration struct {
 	// WalClassName specifies the Snapshot Class to be used for the PG_WAL PersistentVolumeClaim.
 	// +optional
 	WalClassName string `json:"walClassName,omitempty"`
+	// BackupClassName specifies the Snapshot Class to be used for the backups.
+	// +optional
+	BackupClassName string `json:"backupClassName,omitempty"`
 	// TablespaceClassName specifies the Snapshot Class to be used for the tablespaces.
 	// defaults to the PGDATA Snapshot Class, if set
 	// +optional
@@ -355,6 +362,10 @@ type ClusterSpec struct {
 	// Configuration of the storage for PostgreSQL WAL (Write-Ahead Log)
 	// +optional
 	WalStorage *StorageConfiguration `json:"walStorage,omitempty"`
+
+	// Configuration of the storage for backups
+	// +optional
+	BackupStorage *StorageConfiguration `json:"backupStorage,omitempty"`
 
 	// EphemeralVolumeSource allows the user to configure the source of ephemeral volumes.
 	// +optional
@@ -3153,6 +3164,11 @@ func (cluster *Cluster) ShouldCreateProjectedVolume() bool {
 // ShouldCreateWalArchiveVolume returns whether we should create the wal archive volume
 func (cluster *Cluster) ShouldCreateWalArchiveVolume() bool {
 	return cluster.Spec.WalStorage != nil
+}
+
+// ShouldCreateBackupVolume returns whether we should create the backup volume
+func (cluster *Cluster) ShouldCreateBackupVolume() bool {
+	return cluster.Spec.BackupStorage != nil
 }
 
 // ContainsTablespaces returns true if for this cluster, we need to create tablespaces

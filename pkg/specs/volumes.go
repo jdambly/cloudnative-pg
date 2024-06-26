@@ -34,6 +34,9 @@ const PgWalVolumePath = "/var/lib/postgresql/wal"
 // PgWalVolumePgWalPath is the path of pg_wal directory inside the WAL volume when present
 const PgWalVolumePgWalPath = "/var/lib/postgresql/wal/pg_wal"
 
+// PgBackupsVolumePath is the path used by the backups volume when present
+const PgBackupsVolumePath = "/backup"
+
 // PgTablespaceVolumePath is the base path used by tablespace when present
 const PgTablespaceVolumePath = "/var/lib/postgresql/tablespaces"
 
@@ -98,6 +101,7 @@ func createPostgresVolumes(cluster *apiv1.Cluster, podName string) []corev1.Volu
 				},
 			},
 		},
+
 		createEphemeralVolume(cluster),
 		{
 			Name: "shm",
@@ -146,6 +150,19 @@ func createPostgresVolumes(cluster *apiv1.Cluster, podName string) []corev1.Volu
 					},
 				},
 			})
+	}
+
+	if cluster.ShouldCreateBackupVolume() {
+		result = append(result,
+			corev1.Volume{
+				Name: "pg-backup",
+				VolumeSource: corev1.VolumeSource{
+					PersistentVolumeClaim: &corev1.PersistentVolumeClaimVolumeSource{
+						ClaimName: podName + apiv1.BackupVolumeSuffix,
+					},
+				},
+			},
+		)
 	}
 
 	// we should create volumeMounts in fixed sequence as podSpec will store it in annotation and
@@ -279,6 +296,16 @@ func createPostgresVolumeMounts(cluster apiv1.Cluster) []corev1.VolumeMount {
 				MountPath: PgWalVolumePath,
 			},
 		)
+	}
+
+	if cluster.ShouldCreateBackupVolume() {
+		volumeMounts = append(volumeMounts,
+			corev1.VolumeMount{
+				Name:      "pg-backup",
+				MountPath: PgBackupsVolumePath,
+			},
+		)
+
 	}
 
 	if cluster.ShouldCreateProjectedVolume() {
